@@ -97,7 +97,7 @@ def replay(store: DagStore, revision_id: RevisionId, branch: str) -> Snapshot:
     operations exactly once, in a parent-before-child (topological) order —
     correct for merge nodes, where both parents' history must be applied,
     not just the first one."""
-    ordered = _topological_order(store, revision_id)
+    ordered = topological_order(store, revision_id)
 
     tables_by_id: dict = {}
     for rev_id in ordered:
@@ -107,7 +107,11 @@ def replay(store: DagStore, revision_id: RevisionId, branch: str) -> Snapshot:
     return Snapshot(branch=branch, revision_id=revision_id, tables=list(tables_by_id.values()))
 
 
-def _topological_order(store: DagStore, revision_id: RevisionId) -> list[RevisionId]:
+def topological_order(store: DagStore, revision_id: RevisionId) -> list[RevisionId]:
+    """All ancestors of revision_id (inclusive), parent-before-child. Public
+    because callers outside replay() -- e.g. the DDL emitter, which needs the
+    full flattened operation history rather than a reconstructed Snapshot --
+    need the same ordering without duplicating this walk."""
     all_revs = ancestors(store, revision_id)
     visited: set[RevisionId] = set()
     order: list[RevisionId] = []

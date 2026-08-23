@@ -1,7 +1,15 @@
 import argparse
+import logging
 from pathlib import Path
 
-from schemavcs.cli.commands import branch_cmd, checkout_cmd, init_cmd, migrate_cmd
+from schemavcs.cli.commands import (
+    branch_cmd,
+    checkout_cmd,
+    emit_ddl_cmd,
+    init_cmd,
+    merge_cmd,
+    migrate_cmd,
+)
 from schemavcs.storage.paths import read_current_branch
 
 
@@ -88,6 +96,17 @@ def build_parser() -> argparse.ArgumentParser:
     drop_constraint = migrate_sub.add_parser("drop-constraint")
     drop_constraint.add_argument("constraint_id")
 
+    merge = sub.add_parser("merge")
+    merge.add_argument("source", help="branch to merge in")
+    merge.add_argument(
+        "--into", dest="target", required=False, default=None, help="defaults to the current branch"
+    )
+
+    emit_ddl = sub.add_parser("emit-ddl")
+    emit_ddl.add_argument(
+        "--branch", required=False, default=None, help="defaults to the current branch"
+    )
+
     return parser
 
 
@@ -148,10 +167,22 @@ def dispatch(args: argparse.Namespace) -> None:
                 migrate_cmd.add_foreign_key(repo_root, branch, args.table, columns, args.references)
             case "drop-constraint":
                 migrate_cmd.drop_constraint(repo_root, branch, args.constraint_id)
+        return
+
+    if args.command == "merge":
+        target = args.target or read_current_branch(repo_root)
+        merge_cmd.run(repo_root, target, args.source)
+        return
+
+    if args.command == "emit-ddl":
+        branch = args.branch or read_current_branch(repo_root)
+        emit_ddl_cmd.run(repo_root, branch)
+        return
 
 
 def main() -> None:
     parser = build_parser()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parser.parse_args()
     dispatch(args)
 

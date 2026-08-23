@@ -1,7 +1,14 @@
 from schemavcs.dag.apply import apply_operation
 from schemavcs.dag.errors import AmbiguousMergeBaseError, NothingToMergeError
 from schemavcs.dag.store import DagStore, UnknownBranchError, UnknownRevisionError
-from schemavcs.dag.walk import ancestors, is_fast_forward, merge_base, operations_since, replay
+from schemavcs.dag.walk import (
+    ancestors,
+    is_fast_forward,
+    merge_base,
+    operations_since,
+    replay,
+    topological_order,
+)
 
 __all__ = [
     "AmbiguousMergeBaseError",
@@ -15,4 +22,5 @@ __all__ = [
     "merge_base",
     "operations_since",
     "replay",
+    "topological_order",
 ]

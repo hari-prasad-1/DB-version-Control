@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
 from schemavcs.dag.persistence import load, save
 from schemavcs.model_sync.sync import sync_model_file
 from schemavcs.storage.paths import read_current_branch, write_current_branch
+
+logger = logging.getLogger(__name__)
 
 
 def create(repo_root: Path, name: str, from_branch: str | None = None) -> None:
@@ -16,4 +19,4 @@ def create(repo_root: Path, name: str, from_branch: str | None = None) -> None:
     save(store, repo_root)
     sync_model_file(repo_root, store, name)
     write_current_branch(repo_root, name)
-    print(f"created branch {name!r} from {source!r} at {parent_head}, switched to {name!r}")
+    logger.info("created branch %r from %r at %s, switched to %r", name, source, parent_head, name)
