@@ -3,7 +3,10 @@ name = "schemavcs"
 version = "0.1.0"
 description = "Version control for database schemas: branch, diff, and merge structure — not row data."
 authors = ["Hari <hariprasad36825@gmail.com>"]
-packages = [{ include = "schemavcs", from = "src" }]
+packages = [
+  { include = "schemavcs", from = "src" },
+  { include = "schemavcs_web", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
