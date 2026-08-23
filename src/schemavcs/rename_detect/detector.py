@@ -19,7 +19,7 @@ otherwise unrelated reordering elsewhere in the same file would wrongly
 penalize a genuine rename.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -59,12 +59,12 @@ ConfirmFn = Callable[[RenameProposal], bool]
 
 
 def detect_renames(
-    old_columns: list[Column],
-    new_columns: list[RawColumn],
+    old_columns: Sequence[Column],
+    new_columns: Sequence[RawColumn],
     table_size: int,
     confirm: ConfirmFn,
-    all_old_columns: list[Column] | None = None,
-    all_new_columns: list[RawColumn] | None = None,
+    all_old_columns: Sequence[Column] | None = None,
+    all_new_columns: Sequence[RawColumn] | None = None,
 ) -> DetectionResult:
     """Scores every remaining (old, new) pair, proposes mutual-best-matches
     for human confirmation one at a time, and puts a rejected pair's two
@@ -140,7 +140,9 @@ def _resolve_single_proposal(proposal: RenameProposal, confirm: ConfirmFn) -> De
     )
 
 
-def _should_ignore_position(old_columns: list[Column], new_columns: list[RawColumn]) -> bool:
+def _should_ignore_position(
+    old_columns: Sequence[Column], new_columns: Sequence[RawColumn]
+) -> bool:
     if not old_columns or not new_columns:
         return False
     new_by_name = {c.name: c for c in new_columns}

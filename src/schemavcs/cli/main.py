@@ -6,6 +6,7 @@ from schemavcs.cli.commands import (
     branch_cmd,
     checkout_cmd,
     emit_ddl_cmd,
+    generate_migration_cmd,
     init_cmd,
     merge_cmd,
     migrate_cmd,
@@ -107,6 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--branch", required=False, default=None, help="defaults to the current branch"
     )
 
+    sync = sub.add_parser("sync")
+    sync.add_argument(
+        "--branch", required=False, default=None, help="defaults to the current branch"
+    )
+
     return parser
 
 
@@ -177,6 +183,11 @@ def dispatch(args: argparse.Namespace) -> None:
     if args.command == "emit-ddl":
         branch = args.branch or read_current_branch(repo_root)
         emit_ddl_cmd.run(repo_root, branch)
+        return
+
+    if args.command == "sync":
+        branch = args.branch or read_current_branch(repo_root)
+        generate_migration_cmd.run(repo_root, branch)
         return
 
 
