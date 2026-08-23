@@ -63,6 +63,7 @@ class AlterColumnDefault:
 
 @dataclass(frozen=True)
 class AddIndex:
+    table_id: UUID
     index: Index
 
 
@@ -80,6 +81,7 @@ class RenameIndex:
 
 @dataclass(frozen=True)
 class AddConstraint:
+    table_id: UUID
     constraint: Constraint
 
 
