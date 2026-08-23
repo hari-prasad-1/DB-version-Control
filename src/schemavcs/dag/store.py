@@ -63,3 +63,9 @@ class DagStore:
 
     def has_branch(self, branch: str) -> bool:
         return branch in self._heads
+
+    def all_revision_ids(self) -> list[RevisionId]:
+        return list(self._nodes.keys())
+
+    def all_heads(self) -> dict[str, RevisionId]:
+        return dict(self._heads)

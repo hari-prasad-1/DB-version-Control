@@ -34,6 +34,20 @@ def dag_heads_file(repo_root: Path) -> Path:
     return storage_dir(repo_root) / "dag" / "heads.json"
 
 
+def current_branch_file(repo_root: Path) -> Path:
+    """The repo's current branch pointer — analogous to Git's HEAD, but
+    always a plain branch name (no detached-HEAD state in this design)."""
+    return storage_dir(repo_root) / "HEAD"
+
+
+def read_current_branch(repo_root: Path) -> str:
+    return current_branch_file(repo_root).read_text().strip()
+
+
+def write_current_branch(repo_root: Path, branch: str) -> None:
+    current_branch_file(repo_root).write_text(f"{branch}\n")
+
+
 def init_storage(repo_root: Path) -> None:
     snapshots_dir(repo_root).mkdir(parents=True, exist_ok=True)
     dag_nodes_dir(repo_root).mkdir(parents=True, exist_ok=True)
