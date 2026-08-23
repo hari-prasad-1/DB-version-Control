@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from schemavcs.dag.persistence import load, save
+from schemavcs.model_sync.sync import sync_model_file
 from schemavcs.storage.paths import read_current_branch, write_current_branch
 
 
@@ -13,5 +14,6 @@ def create(repo_root: Path, name: str, from_branch: str | None = None) -> None:
     parent_head = store.head(source)
     store.set_head(name, parent_head)
     save(store, repo_root)
+    sync_model_file(repo_root, store, name)
     write_current_branch(repo_root, name)
     print(f"created branch {name!r} from {source!r} at {parent_head}, switched to {name!r}")

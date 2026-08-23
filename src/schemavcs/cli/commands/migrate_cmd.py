@@ -30,6 +30,7 @@ from schemavcs.model import (
     RenameIndex,
     Table,
 )
+from schemavcs.model_sync.sync import sync_model_file
 
 
 def _commit(repo_root: Path, branch: str, operation: Operation) -> str:
@@ -39,6 +40,7 @@ def _commit(repo_root: Path, branch: str, operation: Operation) -> str:
     revision_id = make_revision_id((parent,), (compound,))
     store.append(revision_id, branch, (parent,), (compound,))
     save(store, repo_root)
+    sync_model_file(repo_root, store, branch)
     return revision_id
 
 

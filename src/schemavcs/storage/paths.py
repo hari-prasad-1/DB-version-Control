@@ -48,8 +48,20 @@ def write_current_branch(repo_root: Path, branch: str) -> None:
     current_branch_file(repo_root).write_text(f"{branch}\n")
 
 
+def schemas_dir(repo_root: Path) -> Path:
+    """Visible (not under .schemavcs/) directory holding each branch's
+    current model as a plain .schema file — human-inspectable, Rails
+    schema.rb-style, kept in sync after every authored migration."""
+    return repo_root / "schemas"
+
+
+def schema_file(repo_root: Path, branch: str) -> Path:
+    return schemas_dir(repo_root) / f"{branch}.schema"
+
+
 def init_storage(repo_root: Path) -> None:
     snapshots_dir(repo_root).mkdir(parents=True, exist_ok=True)
     dag_nodes_dir(repo_root).mkdir(parents=True, exist_ok=True)
+    schemas_dir(repo_root).mkdir(parents=True, exist_ok=True)
     if not dag_heads_file(repo_root).exists():
         dag_heads_file(repo_root).write_text("{}\n")
