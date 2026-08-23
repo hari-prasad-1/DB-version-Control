@@ -41,6 +41,11 @@ class ClassifiedGroup:
     # and the field name(s) still requiring a human decision.
     agreed_fields: dict[str, object] | None = None
     conflicting_fields: tuple[str, ...] = ()
+    # True when this conflict is over ONE single-valued field (a type, a
+    # nullability flag, a name) rather than two genuinely separate operations
+    # -- "keep both" has no meaningful result for a field that can only ever
+    # hold one value, so the CLI prompt only offers [a]/[b] for these.
+    single_valued_field: bool = False
     # For cross_object_pass's synthetic groups only: the op that referenced
     # a since-dropped table/column. Undoing the drop isn't mechanically
     # supportable (it would mean resurrecting a dropped object from
@@ -102,7 +107,10 @@ def _classify_single_pair(
         field_name, attr = mutation_field
         if getattr(op_a, attr) != getattr(op_b, attr):
             return ClassifiedGroup(
-                group, Classification.CONFLICT, f"both branches set a different {field_name}"
+                group,
+                Classification.CONFLICT,
+                f"both branches set a different {field_name}",
+                single_valued_field=True,
             )
         return ClassifiedGroup(group, Classification.IDENTICAL, "same field, same target value")
 

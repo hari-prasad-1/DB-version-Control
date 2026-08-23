@@ -69,13 +69,22 @@ def confirm_from_cli(group: ClassifiedGroup) -> HumanConfirmationToken:
         )
 
     print(f"Conflict on identity {group.group.identity_id}: {group.reason}")
-    chosen_side = input("Keep [a]/[b]/[both]? ").strip().lower()
-    if chosen_side == "a":
-        chosen = tuple(group.group.ops_a)
-    elif chosen_side == "b":
-        chosen = tuple(group.group.ops_b)
+    if group.single_valued_field:
+        # A single-valued field (a type, a nullability flag, a name) can
+        # only ever hold one value -- "keep both" has no meaningful result
+        # here, so it's not offered at all, rather than silently doing
+        # "whichever op replays last wins" behind a choice that implies an
+        # actual merge happened.
+        chosen_side = input("Keep [a]/[b]? ").strip().lower()
+        chosen = tuple(group.group.ops_b) if chosen_side == "b" else tuple(group.group.ops_a)
     else:
-        chosen = tuple(group.group.ops_a) + tuple(group.group.ops_b)
+        chosen_side = input("Keep [a]/[b]/[both]? ").strip().lower()
+        if chosen_side == "a":
+            chosen = tuple(group.group.ops_a)
+        elif chosen_side == "b":
+            chosen = tuple(group.group.ops_b)
+        else:
+            chosen = tuple(group.group.ops_a) + tuple(group.group.ops_b)
     return HumanConfirmationToken(
         group_id=group.group.identity_id, chosen_resolution=chosen, _nonce=uuid4()
     )

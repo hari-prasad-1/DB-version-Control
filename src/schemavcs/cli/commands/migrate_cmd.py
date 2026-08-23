@@ -73,7 +73,11 @@ def add_column(
     snapshot = replay(store, store.head(branch), branch)
     table = find_table(snapshot, table_name)
     column = Column(
-        id=uuid4(), name=column_name, type=parse_type_spec(type_expr), nullable=nullable
+        id=uuid4(),
+        name=column_name,
+        type=parse_type_spec(type_expr),
+        nullable=nullable,
+        position=len(table.columns),
     )
     rev = _commit(repo_root, branch, AddColumn(table_id=table.id, column=column))
     logger.info(f"added column {table_name}.{column_name} ({rev})")
