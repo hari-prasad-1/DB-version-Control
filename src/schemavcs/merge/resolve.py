@@ -30,9 +30,9 @@ class TokenAlreadyUsedError(Exception):
     pass
 
 
-def confirm_from_cli(group: ClassifiedGroup, prompt: str) -> HumanConfirmationToken:
+def confirm_from_cli(group: ClassifiedGroup) -> HumanConfirmationToken:
     """Blocks on real terminal input. The only producer of a valid token."""
-    print(prompt)
+    print(f"Conflict on identity {group.group.identity_id}: {group.reason}")
     chosen_side = input("Keep [a]/[b]/[both]? ").strip().lower()
     if chosen_side == "a":
         chosen = tuple(group.group.ops_a)
