@@ -165,3 +165,36 @@ def test_replay_through_merge_node():
     assert len(snapshot.tables) == 1
     column_names = {c.name for c in snapshot.tables[0].columns}
     assert column_names == {"total", "status"}
+
+
+def test_replay_does_not_mutate_stored_history():
+    # apply_operation must never hand back the same Table/Column object
+    # that lives inside a Migration node's own stored operations -- a later
+    # mutation (e.g. AddColumn appending a column) would otherwise bake
+    # itself into that earlier CreateTable's payload permanently.
+    store = DagStore()
+    table_id = uuid4()
+    create_op = CreateTable(table=Table(id=table_id, name="orders"))
+    store.append("root", "main", (), operations=(CompoundOperation(operations=(create_op,)),))
+    store.append(
+        "a1",
+        "main",
+        ("root",),
+        operations=(
+            CompoundOperation(
+                operations=(
+                    AddColumn(
+                        table_id=table_id,
+                        column=Column(id=uuid4(), name="total", type=TypeSpec("int")),
+                    ),
+                )
+            ),
+        ),
+    )
+
+    replay(store, "a1", branch="main")
+    replay(store, "a1", branch="main")  # replaying twice must not compound
+
+    assert create_op.table.columns == []  # the ORIGINAL stored CreateTable is untouched
+    snapshot = replay(store, "a1", branch="main")
+    assert [c.name for c in snapshot.tables[0].columns] == ["total"]

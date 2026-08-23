@@ -39,6 +39,26 @@ def test_author_migrations_and_rename_via_cli(tmp_path):
     assert rename_op.new_name == "plan_type"
 
 
+def test_repeated_add_column_does_not_duplicate_earlier_columns(tmp_path):
+    # each CLI verb loads the store fresh and replays the branch to resolve
+    # names -- if replay ever mutated the DAG's own stored Table/Column
+    # objects in place, every earlier AddColumn would bake itself into the
+    # original CreateTable's payload, and each subsequent replay would show
+    # more copies of the same column than actually exist.
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    migrate_cmd.add_column(tmp_path, "main", "users", "id", "uuid", False)
+    migrate_cmd.add_column(tmp_path, "main", "users", "email", "string(255)", False)
+    migrate_cmd.add_column(tmp_path, "main", "users", "region", "string(10)", True)
+
+    from schemavcs.dag.walk import replay
+
+    store = load(tmp_path)
+    snapshot = replay(store, store.head("main"), "main")
+    column_names = [c.name for c in snapshot.tables[0].columns]
+    assert column_names == ["id", "email", "region"]
+
+
 def test_branch_create_inherits_parent_head(tmp_path):
     init_cmd.run(tmp_path)
     migrate_cmd.create_table(tmp_path, "main", "orders")

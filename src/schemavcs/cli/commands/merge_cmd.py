@@ -29,3 +29,5 @@ def run(repo_root: Path, target_branch: str, source_branch: str) -> None:
             result.migration.id,
             result.conflicts_resolved,
         )
+    for note in result.notes:
+        logger.info("note: %s", note)

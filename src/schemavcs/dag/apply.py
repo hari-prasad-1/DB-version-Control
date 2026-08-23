@@ -3,6 +3,13 @@
 Used by replay() to reconstruct a Snapshot from a chain of migrations, and
 by the merge engine when assembling the merged result.
 
+Create*/Add* ops store a deep copy of their payload, never the original
+object -- the original still lives inside its Migration node, part of the
+DagStore's permanent history, and later ops (AddColumn appending to
+`.columns`, RenameColumn setting `.name`, etc.) mutate the in-progress
+state in place. Without the copy that mutation silently corrupts the
+stored operation itself.
+
 Every operation except CreateTable/DropTable silently no-ops when its
 target table/column no longer exists. This matters for merges: replaying a
 merge node walks BOTH parents, and one branch's drop can legitimately be
@@ -14,6 +21,7 @@ CreateTable/DropTable target IS still a bug (a revision pointing at a
 table id that was never created at all), so those two stay strict.
 """
 
+import copy
 from uuid import UUID
 
 from schemavcs.model import (
@@ -54,12 +62,12 @@ def _table_owning_column(tables_by_id: dict[UUID, Table], column_id: UUID) -> Ta
 def apply_operation(tables_by_id: dict[UUID, Table], op: Operation) -> None:
     match op:
         case CreateTable(table=table):
-            tables_by_id[table.id] = table
+            tables_by_id[table.id] = copy.deepcopy(table)
         case DropTable(table_id=table_id):
             del tables_by_id[table_id]
         case AddColumn(table_id=table_id, column=column):
             if table_id in tables_by_id:
-                tables_by_id[table_id].columns.append(column)
+                tables_by_id[table_id].columns.append(copy.deepcopy(column))
         case DropColumn(table_id=table_id, column_id=column_id):
             table = tables_by_id.get(table_id)
             if table is not None:
@@ -86,7 +94,7 @@ def apply_operation(tables_by_id: dict[UUID, Table], op: Operation) -> None:
                 column.default = new_default
         case AddIndex(table_id=table_id, index=index):
             if table_id in tables_by_id:
-                tables_by_id[table_id].indexes.append(index)
+                tables_by_id[table_id].indexes.append(copy.deepcopy(index))
         case DropIndex(index_id=index_id):
             for table in tables_by_id.values():
                 table.indexes = [i for i in table.indexes if i.id != index_id]
@@ -98,7 +106,7 @@ def apply_operation(tables_by_id: dict[UUID, Table], op: Operation) -> None:
                         return
         case AddConstraint(table_id=table_id, constraint=constraint):
             if table_id in tables_by_id:
-                tables_by_id[table_id].constraints.append(constraint)
+                tables_by_id[table_id].constraints.append(copy.deepcopy(constraint))
         case DropConstraint(constraint_id=constraint_id):
             for table in tables_by_id.values():
                 table.constraints = [c for c in table.constraints if c.id != constraint_id]

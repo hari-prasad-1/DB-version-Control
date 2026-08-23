@@ -1,4 +1,6 @@
-from schemavcs.cli.commands import branch_cmd, init_cmd, merge_cmd, migrate_cmd
+import logging
+
+from schemavcs.cli.commands import branch_cmd, checkout_cmd, init_cmd, merge_cmd, migrate_cmd
 from schemavcs.cli.main import build_parser, dispatch
 from schemavcs.dag.persistence import load
 
@@ -59,6 +61,22 @@ def test_merge_conflict_resolved_via_confirm_callback(tmp_path):
 
     result = merge(store, "main", "branch-b", confirm=_keep_a)
     assert result.conflicts_resolved == 1
+
+
+def test_merge_cmd_logs_name_collision_note(tmp_path, caplog):
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    branch_cmd.create(tmp_path, "branch-a", from_branch="main")
+    migrate_cmd.add_column(tmp_path, "branch-a", "users", "notes", "text", True)
+
+    checkout_cmd.run(tmp_path, "main")
+    branch_cmd.create(tmp_path, "branch-b", from_branch="main")
+    migrate_cmd.add_column(tmp_path, "branch-b", "users", "notes", "string(500)", True)
+
+    with caplog.at_level(logging.INFO):
+        merge_cmd.run(tmp_path, "branch-a", "branch-b")
+
+    assert any("notes" in record.message for record in caplog.records)
 
 
 def test_emit_ddl_cmd_prints_sql_for_full_history(tmp_path, capsys):
