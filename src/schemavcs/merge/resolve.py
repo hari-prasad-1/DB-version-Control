@@ -16,7 +16,15 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from schemavcs.merge.classify import Classification, ClassifiedGroup
-from schemavcs.model import Operation
+from schemavcs.model import (
+    AddColumn,
+    AddConstraint,
+    AddIndex,
+    DropColumn,
+    DropConstraint,
+    DropIndex,
+    Operation,
+)
 
 
 @dataclass(frozen=True)
@@ -30,8 +38,36 @@ class TokenAlreadyUsedError(Exception):
     pass
 
 
+def _corrective_drop_for(op: Operation) -> Operation:
+    """The dependent-object drop needed when a cross-object conflict
+    resolves toward keeping the drop that caused it. Undoing the drop
+    itself isn't offered (see ClassifiedGroup.cross_object_referencing_op)
+    -- resurrecting a dropped table/column from nothing isn't something
+    this tool can do, so the referencing op's own object must go instead."""
+    match op:
+        case AddColumn(column=column):
+            return DropColumn(table_id=op.table_id, column_id=column.id)
+        case AddIndex(index=index):
+            return DropIndex(index_id=index.id)
+        case AddConstraint(constraint=constraint):
+            return DropConstraint(constraint_id=constraint.id)
+        case _:
+            raise TypeError(f"no corrective drop defined for {type(op).__name__}")
+
+
 def confirm_from_cli(group: ClassifiedGroup) -> HumanConfirmationToken:
     """Blocks on real terminal input. The only producer of a valid token."""
+    if group.cross_object_referencing_op is not None:
+        print(f"Conflict on identity {group.group.identity_id}: {group.reason}")
+        input(
+            "The dropped table/column wins; the dependent object above will "
+            "also be dropped. Press enter to acknowledge. "
+        )
+        chosen = (_corrective_drop_for(group.cross_object_referencing_op),)
+        return HumanConfirmationToken(
+            group_id=group.group.identity_id, chosen_resolution=chosen, _nonce=uuid4()
+        )
+
     print(f"Conflict on identity {group.group.identity_id}: {group.reason}")
     chosen_side = input("Keep [a]/[b]/[both]? ").strip().lower()
     if chosen_side == "a":
@@ -54,13 +90,25 @@ class ResolutionEngine:
         self._spent_nonces: set[UUID] = set()
 
     def auto_resolve(self, group: ClassifiedGroup) -> tuple[Operation, ...] | None:
-        """Returns the merged operations for classifications safe to commit
-        without a human, or None if this group needs `commit_resolution`."""
+        """Returns the operations the MERGE NODE ITSELF must (re-)store for
+        classifications safe to commit without a human, or None if this
+        group needs `commit_resolution`.
+
+        UNRELATED/IDENTICAL contribute nothing here -- the operation is
+        already present in at least one parent's own ancestor chain, and
+        replay()/emit_ddl() walk BOTH parents, so it's already reachable.
+        Re-storing it in the merge node would apply it a second time --
+        harmless for a mutation (setting the same field twice), but a hard
+        error for CreateTable/AddColumn/DropTable/etc (duplicate insert,
+        missing-key delete). COMMUTING/ORDER_IRRELEVANT only ever pair up
+        two DIFFERENT mutation-type ops on one pre-existing identity (never
+        a create/drop -- classify.py routes those to CONFLICT or IDENTICAL
+        instead), so re-storing both here is required (each side only
+        carries its own half) and safe (mutations are idempotent to
+        re-apply)."""
         if group.classification in (Classification.IDENTICAL, Classification.UNRELATED):
-            return tuple(group.group.ops_a) or tuple(group.group.ops_b)
-        if group.classification == Classification.COMMUTING:
-            return tuple(group.group.ops_a) + tuple(group.group.ops_b)
-        if group.classification == Classification.ORDER_IRRELEVANT:
+            return ()
+        if group.classification in (Classification.COMMUTING, Classification.ORDER_IRRELEVANT):
             return tuple(group.group.ops_a) + tuple(group.group.ops_b)
         return None
 

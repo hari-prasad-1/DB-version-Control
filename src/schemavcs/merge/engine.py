@@ -18,8 +18,9 @@ from schemavcs.dag.walk import is_fast_forward, merge_base, operations_since, re
 from schemavcs.merge.classify import ClassifiedGroup, classify
 from schemavcs.merge.cross_object import cross_object_pass
 from schemavcs.merge.grouping import group_by_identity
+from schemavcs.merge.name_collision import describe, find_name_collisions
 from schemavcs.merge.resolve import HumanConfirmationToken, ResolutionEngine, confirm_from_cli
-from schemavcs.model import CompoundOperation, Migration, Operation
+from schemavcs.model import CompoundOperation, DropColumn, Migration, Operation
 
 ConfirmFn = Callable[[ClassifiedGroup], HumanConfirmationToken]
 
@@ -29,6 +30,7 @@ class MergeResult:
     migration: Migration
     fast_forward: bool
     conflicts_resolved: int
+    notes: tuple[str, ...] = ()
 
 
 def merge(
@@ -65,6 +67,18 @@ def merge(
     snapshot_ancestor = replay(store, base, branch="__merge_base__")
     classified = cross_object_pass(classified, ops_a, ops_b, snapshot_ancestor)
 
+    # Same-name column collisions never land in the same identity group
+    # (each side minted its own UUID) -- classify()/cross_object_pass() are
+    # structurally blind to them, so they're resolved separately here. The
+    # losing AddColumn is already baked into its own branch's ancestor
+    # chain (can't be un-stored), so undoing it means an explicit
+    # corrective DropColumn in the merge node, not just omitting it.
+    collisions = find_name_collisions(ops_a, ops_b)
+    corrective_drops = [
+        DropColumn(table_id=c.dropped.table_id, column_id=c.dropped.column.id) for c in collisions
+    ]
+    notes = tuple(describe(c) for c in collisions)
+
     engine = ResolutionEngine()
     resolved_ops: list[Operation] = []
     conflicts_resolved = 0
@@ -78,6 +92,8 @@ def merge(
         resolved_ops.extend(engine.commit_resolution(group, token))
         conflicts_resolved += 1
 
+    resolved_ops.extend(corrective_drops)
+
     merged_compound = (CompoundOperation(operations=tuple(resolved_ops)),) if resolved_ops else ()
     revision_id = make_revision_id((target_head, source_head), merged_compound)
     migration = store.append(
@@ -87,5 +103,8 @@ def merge(
         operations=merged_compound,
     )
     return MergeResult(
-        migration=migration, fast_forward=False, conflicts_resolved=conflicts_resolved
+        migration=migration,
+        fast_forward=False,
+        conflicts_resolved=conflicts_resolved,
+        notes=notes,
     )

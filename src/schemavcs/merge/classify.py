@@ -41,6 +41,12 @@ class ClassifiedGroup:
     # and the field name(s) still requiring a human decision.
     agreed_fields: dict[str, object] | None = None
     conflicting_fields: tuple[str, ...] = ()
+    # For cross_object_pass's synthetic groups only: the op that referenced
+    # a since-dropped table/column. Undoing the drop isn't mechanically
+    # supportable (it would mean resurrecting a dropped object from
+    # nothing), so the only real resolution is a corrective drop of
+    # WHATEVER this op added -- there is no generic ops_a/ops_b choice here.
+    cross_object_referencing_op: Operation | None = None
 
 
 _DESTRUCTIVE_VARIANTS = ("DropColumn", "DropTable", "DropIndex", "DropConstraint")

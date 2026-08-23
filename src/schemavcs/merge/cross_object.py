@@ -151,4 +151,9 @@ def _build_conflict(
         ops_a=[referencing_op] if on_side_a else [],
         ops_b=[referencing_op] if not on_side_a else [],
     )
-    return ClassifiedGroup(group=group, classification=Classification.CONFLICT, reason=reason)
+    return ClassifiedGroup(
+        group=group,
+        classification=Classification.CONFLICT,
+        reason=reason,
+        cross_object_referencing_op=referencing_op,
+    )
