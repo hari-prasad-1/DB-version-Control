@@ -34,6 +34,15 @@ def dag_heads_file(repo_root: Path) -> Path:
     return storage_dir(repo_root) / "dag" / "heads.json"
 
 
+def dag_retired_branches_file(repo_root: Path) -> Path:
+    """Names of branches that were once created, then deleted. Kept
+    forever, separate from `heads.json`, so a deleted name can never be
+    reused for a new branch -- old migration history stays valid and
+    readable even after its branch name is gone, but nothing should ever
+    look like it belongs to an unrelated new branch of the same name."""
+    return storage_dir(repo_root) / "dag" / "retired_branches.json"
+
+
 def current_branch_file(repo_root: Path) -> Path:
     """The repo's current branch pointer — analogous to Git's HEAD, but
     always a plain branch name (no detached-HEAD state in this design)."""

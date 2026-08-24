@@ -1,0 +1,13 @@
+{% extends "_base.html" %}
+{% block title %}schemavcs — sync complete{% endblock %}
+{% block content %}
+<div class="panel">
+  <h2>Sync complete</h2>
+  {% if revision_id %}
+    <p class="note good">Generated migration <code>{{ revision_id }}</code> on <code>{{ branch }}</code>.</p>
+  {% else %}
+    <p class="note">No changes detected — the schema file matched the tracked state.</p>
+  {% endif %}
+  <p><a href="/">← back to repo</a></p>
+</div>
+{% endblock %}

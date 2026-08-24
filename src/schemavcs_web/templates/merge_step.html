@@ -1,0 +1,44 @@
+{% extends "_base.html" %}
+{% block title %}schemavcs — resolve conflict{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>Conflict — {{ group.classification.value }}</h2>
+  <p>{{ group.reason }}</p>
+
+  <div class="op-diff">
+    <div class="side">
+      <h3>Branch A</h3>
+      {% for op in group.group.ops_a %}
+        <div class="op-line">{{ op }}</div>
+      {% else %}
+        <div class="op-line" style="color:var(--ink-soft)">(nothing)</div>
+      {% endfor %}
+    </div>
+    <div class="side">
+      <h3>Branch B</h3>
+      {% for op in group.group.ops_b %}
+        <div class="op-line">{{ op }}</div>
+      {% else %}
+        <div class="op-line" style="color:var(--ink-soft)">(nothing)</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <form class="choice-form" method="post" action="/merge/{{ session_id }}/answer">
+    {% if ui_mode == "cross_object" %}
+      <p class="note">The dropped table/column wins; the dependent object above will also be dropped.</p>
+      <input type="hidden" name="choice" value="ack">
+      <button type="submit">Acknowledge</button>
+    {% elif ui_mode == "single_valued" %}
+      <button type="submit" name="choice" value="a">Keep A</button>
+      <button type="submit" name="choice" value="b">Keep B</button>
+    {% else %}
+      <button type="submit" name="choice" value="a">Keep A</button>
+      <button type="submit" name="choice" value="b">Keep B</button>
+      <button type="submit" name="choice" value="both">Keep both</button>
+    {% endif %}
+  </form>
+</div>
+
+{% endblock %}

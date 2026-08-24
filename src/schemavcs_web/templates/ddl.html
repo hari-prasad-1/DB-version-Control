@@ -1,0 +1,9 @@
+{% extends "_base.html" %}
+{% block title %}schemavcs — DDL for {{ branch }}{% endblock %}
+{% block content %}
+<div class="panel">
+  <h2>Emitted DDL — {{ branch }}</h2>
+  <pre class="code">{{ sql }}</pre>
+  <p><a href="/">← back to repo</a></p>
+</div>
+{% endblock %}

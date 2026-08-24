@@ -1,0 +1,33 @@
+{% extends "_base.html" %}
+{% block title %}schemavcs — confirm rename{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>Detected a possible rename</h2>
+  <p>
+    <code>{{ proposal.old_column.name }}</code> → <code>{{ proposal.new_column.name }}</code>
+    {% if proposal.similarity < 0 %}
+      (no ambiguity, only one candidate on each side)
+    {% else %}
+      (similarity {{ "%.2f"|format(proposal.similarity) }})
+    {% endif %}
+  </p>
+
+  <div class="op-diff">
+    <div class="side">
+      <h3>Before</h3>
+      <div class="op-line">{{ proposal.old_column.name }}: {{ proposal.old_column.type.name }}</div>
+    </div>
+    <div class="side">
+      <h3>After</h3>
+      <div class="op-line">{{ proposal.new_column.name }}: {{ proposal.new_column.type.name }}</div>
+    </div>
+  </div>
+
+  <form class="choice-form" method="post" action="/sync/{{ session_id }}/answer">
+    <button type="submit" name="accept" value="yes">Confirm rename</button>
+    <button type="submit" name="accept" value="no" class="secondary">Not a rename</button>
+  </form>
+</div>
+
+{% endblock %}

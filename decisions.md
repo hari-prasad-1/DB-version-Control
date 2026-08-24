@@ -296,6 +296,65 @@ suite, before I consider it done.
 
 ---
 
+## Decision 8 — A web layer on top, not a rewrite
+
+**The decision.** I wrapped the existing engine in a thin FastAPI app
+(server-rendered pages, no JS framework) instead of building a second
+implementation of any of it. `src/schemavcs_web/` imports from
+`schemavcs.*` and never edits it.
+
+**Who this is actually for.** A developer deciding whether to trust this
+tool's merge behavior on a real repo, before reading the source. A CLI
+transcript proves the engine works if you already know what to look for;
+a browser flow — create two branches, watch them diverge, click through an
+actual conflict, see the DDL come out the other side — lets someone form
+that judgment without reading any code first. That's the actual job this
+web layer does; it isn't a second product, it's a viewer onto the first
+one.
+
+**The one real technical problem: `merge()` and `detect_renames()` block.**
+Both take a `confirm` callback and call it synchronously, inline, once per
+question, blocking until it returns. A web UI is one request per click —
+the opposite shape.
+
+**Alternatives I considered.** Restructuring the call site only: run
+`merge()`/`detect_renames()` with a placeholder confirm answer first to
+enumerate every question up front, then run it again for real once a human
+has answered them all. I read both loops before deciding this wouldn't
+work uniformly. `merge()`'s conflict list is built once, before its loop
+starts, and never depends on prior answers — the placeholder approach
+would actually work there. `detect_renames()` is the opposite: its
+candidate pool shrinks on every accept, so question N+1 genuinely depends
+on the real answer to question N. No placeholder reproduces that once a
+real answer diverges from it — the only version of this approach that
+stays correct is re-running the whole function from scratch on every
+click, which is simulating a pause by brute-force re-execution, not
+actually pausing.
+
+**Reasoning and trade-offs.** I ran the blocking call on a background
+thread instead: the `confirm` callback blocks *that* thread on a
+`threading.Event`, never the HTTP request, and ordinary GET/POST handlers
+just read and write shared state. This works the same way for both
+functions regardless of whether a given loop happens to be answer-
+independent — it doesn't lean on that fact holding, the way the
+placeholder approach would for `merge()` alone. The cost: one background
+thread per in-flight session, and no persistence beyond the process's own
+lifetime — acceptable here, since this is a demo tool for one person
+walking through one repo at a time, not a multi-user service.
+
+**What I deliberately cut.** Any concurrency handling beyond "each browser
+session gets its own throwaway temp-directory repo." `storage/paths.py`
+has no file locking (see decision 2's stance on staying out of Postgres's
+business — same instinct here: don't build infrastructure the actual scope
+doesn't call for). Multiple people editing the *same* repo at once was
+never something this tool needed to support, so I didn't build for it.
+Persisting a session across a server restart — cut for the same reason: a
+demo walkthrough tool doesn't need to survive a restart, and building that
+in would mean solving a real persistence problem this project was never
+about.
+
+---
+
 ## Prior art
 
 | Tool | Handles rename identity? | Handles 3-way merge? |

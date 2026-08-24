@@ -1,0 +1,112 @@
+{% extends "_base.html" %}
+{% block title %}schemavcs — repo{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>Branches</h2>
+  <div class="row">
+    {% for b in branches %}
+      <span class="branch-pill{% if b == current_branch %} current{% endif %}">{{ b }}</span>
+    {% endfor %}
+  </div>
+  <form class="row" method="post" action="/checkout" style="margin-top:14px">
+    <select name="branch">
+      {% for b in branches %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+    </select>
+    <button type="submit">Checkout</button>
+  </form>
+  <form class="row" method="post" action="/branch" style="margin-top:10px">
+    <input name="name" placeholder="new-branch-name" required>
+    <select name="from_branch">
+      {% for b in branches %}<option value="{{ b }}" {% if b == current_branch %}selected{% endif %}>{{ b }}</option>{% endfor %}
+    </select>
+    <button type="submit">Create branch</button>
+  </form>
+  <div class="row" style="margin-top:10px">
+    <a href="/branches/{{ current_branch }}/ddl">View emitted DDL for {{ current_branch }} →</a>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Author a change — direct CLI-style verb</h2>
+  <p style="color:var(--ink-soft);font-size:13.5px;margin-top:0">
+    No ambiguity: you tell the tool exactly what happened. Applies to <strong>{{ current_branch }}</strong>.
+  </p>
+  <form class="row" method="post" action="/migrate/create-table">
+    <input name="table" placeholder="table name" required>
+    <button type="submit">Create table</button>
+  </form>
+  <form class="row" method="post" action="/migrate/add-column" style="margin-top:10px">
+    <input name="table" placeholder="table" required>
+    <input name="column" placeholder="column name" required>
+    <input name="type_expr" placeholder="type (e.g. string, enum, int)" required>
+    <button type="submit">Add column</button>
+  </form>
+  <form class="row" method="post" action="/migrate/alter-column-type" style="margin-top:10px">
+    <input name="table" placeholder="table" required>
+    <input name="column" placeholder="column" required>
+    <input name="new_type" placeholder="new type" required>
+    <button type="submit">Alter column type</button>
+  </form>
+  <form class="row" method="post" action="/migrate/rename-column" style="margin-top:10px">
+    <input name="table" placeholder="table" required>
+    <input name="old_name" placeholder="old name" required>
+    <input name="new_name" placeholder="new name" required>
+    <button type="submit">Rename column</button>
+  </form>
+  <form class="row" method="post" action="/migrate/drop-table" style="margin-top:10px">
+    <input name="table" placeholder="table" required>
+    <button type="submit" class="warn">Drop table</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Author a change — edit the schema file directly</h2>
+  <p style="color:var(--ink-soft);font-size:13.5px;margin-top:0">
+    Edit <code>{{ current_branch }}.schema</code> below like a human would, save it, then run
+    <strong>Sync</strong> — the tool diffs your edit and proposes renames for you to confirm.
+  </p>
+  <form method="post" action="/schema/save">
+    <textarea name="text" spellcheck="false">{{ schema_text }}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button type="submit">Save edit</button>
+    </div>
+  </form>
+  <form method="post" action="/sync/start" onsubmit="startSync(event)" style="margin-top:10px">
+    <button type="submit">Sync (detect renames)</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Merge two branches</h2>
+  <form method="post" action="/merge/start" onsubmit="startMerge(event)">
+    <div class="row">
+      <select name="target_branch">
+        {% for b in branches %}<option value="{{ b }}" {% if b == current_branch %}selected{% endif %}>{{ b }}</option>{% endfor %}
+      </select>
+      <span>← merge into ←</span>
+      <select name="source_branch">
+        {% for b in branches %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+      </select>
+      <button type="submit">Merge</button>
+    </div>
+  </form>
+</div>
+
+<script>
+async function startSync(e) {
+  e.preventDefault();
+  const resp = await fetch("/sync/start", { method: "POST" });
+  const data = await resp.json();
+  window.location.href = "/sync/" + data.session_id + "/step";
+}
+async function startMerge(e) {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  const resp = await fetch("/merge/start", { method: "POST", body: form });
+  const data = await resp.json();
+  window.location.href = "/merge/" + data.session_id + "/step";
+}
+</script>
+
+{% endblock %}
