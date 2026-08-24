@@ -91,6 +91,10 @@ def _classify_single_pair(
             group,
             Classification.CONFLICT,
             "one branch removed this identity while the other mutated it",
+            # "Keep both" would mean the column is simultaneously dropped
+            # and renamed/retyped/etc -- not a real outcome. Only [a]/[b]
+            # makes sense, same as any other single-valued conflict.
+            single_valued_field=True,
         )
 
     if type(op_a) is type(op_b):

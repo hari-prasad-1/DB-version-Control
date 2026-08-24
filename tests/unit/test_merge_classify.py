@@ -65,6 +65,10 @@ def test_rename_vs_drop_conflict():
     group = IdentityGroup(identity_id=col_id, ops_a=[op_a], ops_b=[op_b])
     result = classify(group)
     assert result.classification == Classification.CONFLICT
+    # "Keep both" would mean the column is simultaneously dropped and
+    # renamed -- not a real outcome, so only [a]/[b] should ever be
+    # offered, same as any other single-valued conflict.
+    assert result.single_valued_field is True
 
 
 def test_drop_vs_any_mutation_generalized_conflict():
@@ -74,6 +78,7 @@ def test_drop_vs_any_mutation_generalized_conflict():
     group = IdentityGroup(identity_id=col_id, ops_a=[op_a], ops_b=[op_b])
     result = classify(group)
     assert result.classification == Classification.CONFLICT
+    assert result.single_valued_field is True
 
 
 def test_alter_type_same_target_dedupe():
