@@ -54,6 +54,12 @@ poetry run schemavcs --repo /tmp/demo migrate --branch feature rename-column use
 poetry run schemavcs --repo /tmp/demo checkout main
 poetry run schemavcs --repo /tmp/demo merge feature --into main
 poetry run schemavcs --repo /tmp/demo emit-ddl
+
+# undo the last migration on a branch (like git reset --hard HEAD^)
+poetry run schemavcs --repo /tmp/demo branch rollback main --steps 1
+
+# delete a branch -- its history stays reachable, the name is retired forever
+poetry run schemavcs --repo /tmp/demo branch delete feature
 ```
 
 Walk through `docs/walkthroughs/01-basics.md` for the same thing narrated, or

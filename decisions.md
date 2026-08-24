@@ -43,7 +43,7 @@ fill rather than a known reference implementation to reproduce.
 
 ---
 
-## Decision 1 — Two authoring paths, not one
+## Decision 1 — Two ways to author a change
 
 **The decision.** I support both an explicit CLI verb per operation
 (`schemavcs migrate rename-column users email contact_email`) *and* editing
@@ -79,7 +79,7 @@ purely cosmetic convenience.
 
 ---
 
-## Decision 2 — Identity is a synthetic UUID, not a Postgres internal id
+## Decision 2 — How I track column/table identity
 
 **The decision.** Every table/column/index/constraint gets its own UUID the
 moment it's created. That UUID — never the name — is what merges key off of.
@@ -105,7 +105,7 @@ above confirmed there was no real signal to derive it from.
 
 ---
 
-## Decision 3 — Rename detection: similarity-scored, human-confirmed
+## Decision 3 — Detecting renames
 
 **The decision.** For the file-diffing authoring path only, I score every
 plausible old/new column pair and propose a rename only when both sides
@@ -161,7 +161,7 @@ it from silently mis-proposing anything.
 
 ---
 
-## Decision 4 — Merge classification, modeled on PlanetScale, extended for renames
+## Decision 4 — How merge conflicts get classified
 
 **The decision.** I group every operation from both branches by what it
 touches, classify each group, and only ask a human about groups that are
@@ -205,7 +205,7 @@ things, not just what a prompt says.
 
 ---
 
-## Decision 5 — A cross-object pass, separate from per-identity classification
+## Decision 5 — A separate pass for cross-object conflicts
 
 **The decision.** A second pass specifically checks: did the other branch
 destroy (drop a table, drop a column) something this branch's operation
@@ -237,7 +237,7 @@ no longer exist) for a feature outside my actual scope.
 
 ---
 
-## Decision 6 — A structural guardrail, not a documented convention
+## Decision 6 — Enforcing a rule in code, not just in a doc
 
 **The decision.** The only thing that can finalize a real conflict's
 resolution is a `HumanConfirmationToken` — a one-time-use object only the
@@ -267,7 +267,7 @@ because that's one step away from quietly becoming a decision-maker.
 
 ---
 
-## Decision 7 — Two real bugs, found only by running the tool for real
+## Decision 7 — Two bugs I only found by actually running it
 
 Not a design decision, but worth recording the reasoning behind treating
 "run the real CLI end to end" as a genuinely different check from "the
@@ -296,7 +296,7 @@ suite, before I consider it done.
 
 ---
 
-## Decision 8 — A web layer on top, not a rewrite
+## Decision 8 — Adding a web UI without touching the engine
 
 **The decision.** I wrapped the existing engine in a thin FastAPI app
 (server-rendered pages, no JS framework) instead of building a second
@@ -355,7 +355,7 @@ about.
 
 ---
 
-## Decision 9 — Deleting a branch retires its name permanently
+## Decision 9 — Deleting a branch
 
 **The decision.** `branch delete <name>` removes a branch's head pointer
 but keeps every migration node it ever pointed at, fully reachable by
@@ -390,6 +390,41 @@ head.
 
 ---
 
+## Decision 10 — Rollback
+
+**The decision.** `branch rollback <name> [--steps n]` moves a branch's
+head backward `n` revisions (default 1) — the same operation as `git
+reset --hard HEAD~n`. Available from both the CLI and the web UI. Nothing
+is deleted: the node(s) rolled back past just stop being anyone's head,
+exactly like an orphaned commit after a real git reset, and stay fully
+replayable by revision id.
+
+**Alternatives I considered.** A Rails-style `down` migration that
+generates and runs reverse DDL (`DROP COLUMN` to undo an `ADD COLUMN`,
+etc.) against a live database. I rejected this because it doesn't fit
+anywhere in what I built: I never execute DDL against a real database at
+all — `emit_ddl` only *prints* SQL for a human or a separate deploy step to
+run. Adding a "runs reverse SQL against your live DB" feature would be a
+new, disconnected subsystem, not an extension of the DAG model I actually
+have.
+
+**Reasoning and trade-offs.** In this model a branch head is just a
+pointer into an immutable DAG, so "rollback" is nearly free — the same
+primitive `checkout`/`merge` already use (`DagStore.set_head`), just walked
+backward along `.parents` instead of forward. Rolling back a merge node
+(two parents) always takes the first parent — the side the merge ran
+"into" — which is the same ambiguity `git reset HEAD^` has with a merge
+commit, and I resolve it the same way git does by default.
+
+**What I deliberately cut.** Rolling back *past* the root raises a clear
+error instead of silently clamping — a rollback that silently did less
+than asked would be a worse bug than one that just tells you it can't.
+Also cut: no automatic "roll back and re-run DDL against a live database"
+step, for the same reason noted in the alternatives above — that would
+require a database connection this tool has never had.
+
+---
+
 ## Prior art
 
 | Tool | Handles rename identity? | Handles 3-way merge? |
@@ -410,7 +445,11 @@ answer to the merge problem. That combination is the gap I set out to fill.
 
 - **Row data** — I version-control the shape of a database, never what's
   inside it.
-- **Rollback** — undoing an applied migration isn't handled.
+- **Rollback against a live database** — I never execute DDL, so there's
+  no "undo the SQL that ran" here, the way Rails' `db:rollback` runs a
+  migration's `down` method against a real connection. What I do support
+  (decision 10, below) is moving a branch's head backward — closer to
+  `git reset --hard HEAD~n` than to a down-migration.
 - **More than two branches merging at once** — always exactly two.
 - **Reconciling a live, already-migrated database against a newly merged
   history** — I assume a clean baseline to apply DDL against; bridging a

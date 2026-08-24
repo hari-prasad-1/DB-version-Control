@@ -84,6 +84,31 @@ def test_recreating_a_deleted_branch_name_returns_a_friendly_400():
     assert "deleted earlier" in r.text
 
 
+def test_rollback_via_http_moves_head_back_and_updates_schema_editor():
+    client = _client()
+    client.post("/migrate/create-table", data={"table": "users"})
+    client.post(
+        "/migrate/add-column", data={"table": "users", "column": "email", "type_expr": "string"}
+    )
+    r = client.get("/")
+    assert "column email: string" in r.text
+
+    r = client.post("/branch/rollback", data={"name": "main", "steps": "1"})
+    assert r.status_code in (200, 303)
+
+    r = client.get("/")
+    assert "column email: string" not in r.text
+
+
+def test_rollback_past_the_root_returns_a_friendly_400():
+    client = _client()
+    client.post("/migrate/create-table", data={"table": "users"})
+
+    r = client.post("/branch/rollback", data={"name": "main", "steps": "2"})
+    assert r.status_code == 400
+    assert "no earlier revision" in r.text
+
+
 def test_ddl_view_renders_real_emitted_sql():
     client = _client()
     client.post("/migrate/create-table", data={"table": "users"})

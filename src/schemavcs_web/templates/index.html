@@ -28,6 +28,13 @@
     </select>
     <button type="submit" class="warn">Delete branch</button>
   </form>
+  <form class="row" method="post" action="/branch/rollback" style="margin-top:10px">
+    <select name="name">
+      {% for b in branches %}<option value="{{ b }}" {% if b == current_branch %}selected{% endif %}>{{ b }}</option>{% endfor %}
+    </select>
+    <input name="steps" type="number" min="1" value="1" style="width:70px" title="how many migrations back">
+    <button type="submit" class="warn">Rollback</button>
+  </form>
   {% if retired_branches %}
     <p style="color:var(--ink-soft);font-size:12.5px;margin-top:10px">
       Deleted (names retired, can't be reused): {{ retired_branches|join(", ") }}

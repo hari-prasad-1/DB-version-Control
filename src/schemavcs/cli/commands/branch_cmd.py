@@ -37,3 +37,32 @@ def delete(repo_root: Path, name: str) -> None:
     store.retire_branch(name)
     save(store, repo_root)
     logger.info("deleted branch %r (name is retired, can never be reused)", name)
+
+
+def rollback(repo_root: Path, name: str, steps: int = 1) -> None:
+    """Moves a branch's head back `steps` revisions -- like Rails'
+    `db:rollback STEP=n` or `git reset --hard HEAD~n`. Each step is just a
+    head-pointer move; no node is ever deleted, so a rolled-back-past node
+    stays reachable (by revision id, or if another branch still points at
+    or past it) exactly like an orphaned commit after a real git reset.
+    Walking a merge node (two parents) always takes the first parent -- the
+    side the merge was run "into" -- same ambiguity git itself resolves the
+    same way with `HEAD^` vs `HEAD^2`."""
+    if steps < 1:
+        raise ValueError(f"steps must be >= 1, got {steps}")
+
+    store = load(repo_root)
+    revision_id = store.head(name)
+    for _ in range(steps):
+        node = store.get_node(revision_id)
+        if not node.parents:
+            raise ValueError(
+                f"branch {name!r} has no earlier revision to roll back to "
+                f"(reached the root after fewer than {steps} step(s))"
+            )
+        revision_id = node.parents[0]
+
+    store.set_head(name, revision_id)
+    save(store, repo_root)
+    sync_model_file(repo_root, store, name)
+    logger.info("rolled back %r by %d step(s), now at %s", name, steps, revision_id)

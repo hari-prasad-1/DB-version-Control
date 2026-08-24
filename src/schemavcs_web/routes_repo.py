@@ -79,6 +79,21 @@ def delete_branch(
     return RedirectResponse("/", status_code=303)
 
 
+@router.post("/branch/rollback")
+def rollback_branch(
+    request: Request,
+    name: str = Form(...),
+    steps: int = Form(1),
+    sc_session: str | None = Cookie(default=None),
+):
+    repo_session = _require_repo(request, sc_session)
+    try:
+        branch_cmd.rollback(repo_session.repo_root, name, steps)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return RedirectResponse("/", status_code=303)
+
+
 @router.post("/checkout")
 def checkout(
     request: Request, branch: str = Form(...), sc_session: str | None = Cookie(default=None)

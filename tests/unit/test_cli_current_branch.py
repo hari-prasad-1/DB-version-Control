@@ -107,3 +107,56 @@ def test_deleted_branchs_history_stays_reachable_through_replay(tmp_path):
     store = load(tmp_path)
     snapshot = replay(store, feature_head, branch="feature")
     assert {c.name for t in snapshot.tables for c in t.columns} == {"email"}
+
+
+def test_rollback_moves_head_back_one_step_by_default(tmp_path):
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    before_add = load(tmp_path).head("main")
+    migrate_cmd.add_column(tmp_path, "main", "users", "email", "string", True)
+
+    branch_cmd.rollback(tmp_path, "main")
+
+    store = load(tmp_path)
+    assert store.head("main") == before_add
+
+    from schemavcs.dag.walk import replay
+
+    snapshot = replay(store, store.head("main"), branch="main")
+    assert {c.name for t in snapshot.tables for c in t.columns} == set()  # email is gone
+
+
+def test_rollback_multiple_steps(tmp_path):
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    root = load(tmp_path).head("main")
+    migrate_cmd.add_column(tmp_path, "main", "users", "email", "string", True)
+    migrate_cmd.add_column(tmp_path, "main", "users", "name", "string", True)
+
+    branch_cmd.rollback(tmp_path, "main", steps=2)
+
+    assert load(tmp_path).head("main") == root
+
+
+def test_rollback_past_the_root_raises(tmp_path):
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+
+    with pytest.raises(ValueError):
+        branch_cmd.rollback(tmp_path, "main", steps=2)
+
+
+def test_rollback_does_not_delete_the_rolled_back_node(tmp_path):
+    from schemavcs.dag.walk import replay
+
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    migrate_cmd.add_column(tmp_path, "main", "users", "email", "string", True)
+    rolled_back_from = load(tmp_path).head("main")
+
+    branch_cmd.rollback(tmp_path, "main")
+
+    store = load(tmp_path)
+    assert store.has_node(rolled_back_from)  # node stays, just orphaned from any head
+    snapshot = replay(store, rolled_back_from, branch="main")
+    assert {c.name for t in snapshot.tables for c in t.columns} == {"email"}

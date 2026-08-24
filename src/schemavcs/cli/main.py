@@ -36,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
     branch_delete = branch_sub.add_parser("delete")
     branch_delete.add_argument("name")
 
+    branch_rollback = branch_sub.add_parser("rollback")
+    branch_rollback.add_argument("name")
+    branch_rollback.add_argument("--steps", type=int, default=1, help="how many revisions back")
+
     checkout = sub.add_parser("checkout")
     checkout.add_argument("branch")
 
@@ -131,6 +135,8 @@ def dispatch(args: argparse.Namespace) -> None:
             branch_cmd.create(repo_root, args.name, args.from_branch)
         elif args.branch_command == "delete":
             branch_cmd.delete(repo_root, args.name)
+        elif args.branch_command == "rollback":
+            branch_cmd.rollback(repo_root, args.name, args.steps)
         return
 
     if args.command == "checkout":
