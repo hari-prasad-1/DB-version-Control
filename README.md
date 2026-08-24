@@ -4,7 +4,8 @@ Version control for database schemas: branch, diff, and merge structure —
 tables, columns, types, constraints, indexes. Row data is out of scope; the
 artifact under version control is the schema itself.
 
-**Live demo:** <REPLACE_WITH_DEPLOYED_URL>
+**Live demo:** https://schemavcs.onrender.com/ — free tier, spins down when
+idle, first request after a while can take ~30-50s to wake up.
 
 Two ways to author a change, both feeding the same merge engine:
 
