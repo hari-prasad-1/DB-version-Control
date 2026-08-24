@@ -47,6 +47,43 @@ def test_branch_and_checkout_round_trip():
     assert 'class="branch-pill current">main' in r.text
 
 
+def test_delete_branch_via_http_retires_the_name():
+    client = _client()
+    client.post("/migrate/create-table", data={"table": "users"})
+    client.post("/branch", data={"name": "feature", "from_branch": "main"})
+    client.post("/checkout", data={"branch": "main"})
+
+    r = client.post("/branch/delete", data={"name": "feature"})
+    assert r.status_code in (200, 303)
+
+    r = client.get("/")
+    assert "feature" not in r.text.split("Deleted")[0]  # gone from the live branch pills
+    assert "Deleted (names retired" in r.text
+    assert "feature" in r.text.split("Deleted (names retired")[1]  # shown as retired
+
+
+def test_delete_current_branch_returns_a_friendly_400_not_a_crash():
+    client = _client()
+    client.post("/migrate/create-table", data={"table": "users"})
+    client.post("/branch", data={"name": "feature", "from_branch": "main"})
+    # still checked out on "feature" -- deleting it should be refused
+
+    r = client.post("/branch/delete", data={"name": "feature"})
+    assert r.status_code == 400
+    assert "current branch" in r.text
+
+
+def test_recreating_a_deleted_branch_name_returns_a_friendly_400():
+    client = _client()
+    client.post("/branch", data={"name": "feature", "from_branch": "main"})
+    client.post("/checkout", data={"branch": "main"})
+    client.post("/branch/delete", data={"name": "feature"})
+
+    r = client.post("/branch", data={"name": "feature", "from_branch": "main"})
+    assert r.status_code == 400
+    assert "deleted earlier" in r.text
+
+
 def test_ddl_view_renders_real_emitted_sql():
     client = _client()
     client.post("/migrate/create-table", data={"table": "users"})

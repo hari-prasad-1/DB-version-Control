@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="defaults to the current branch",
     )
 
+    branch_delete = branch_sub.add_parser("delete")
+    branch_delete.add_argument("name")
+
     checkout = sub.add_parser("checkout")
     checkout.add_argument("branch")
 
@@ -126,6 +129,8 @@ def dispatch(args: argparse.Namespace) -> None:
     if args.command == "branch":
         if args.branch_command == "create":
             branch_cmd.create(repo_root, args.name, args.from_branch)
+        elif args.branch_command == "delete":
+            branch_cmd.delete(repo_root, args.name)
         return
 
     if args.command == "checkout":

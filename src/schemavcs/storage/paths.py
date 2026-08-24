@@ -74,3 +74,5 @@ def init_storage(repo_root: Path) -> None:
     schemas_dir(repo_root).mkdir(parents=True, exist_ok=True)
     if not dag_heads_file(repo_root).exists():
         dag_heads_file(repo_root).write_text("{}\n")
+    if not dag_retired_branches_file(repo_root).exists():
+        dag_retired_branches_file(repo_root).write_text("[]\n")

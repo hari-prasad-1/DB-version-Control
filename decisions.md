@@ -355,6 +355,41 @@ about.
 
 ---
 
+## Decision 9 — Deleting a branch retires its name permanently
+
+**The decision.** `branch delete <name>` removes a branch's head pointer
+but keeps every migration node it ever pointed at, fully reachable by
+revision id. The name itself is retired forever — trying to create a new
+branch with that exact name raises an error, permanently.
+
+**Alternatives I considered.** Actually deleting the branch's migration
+nodes along with its head. I rejected this immediately: those nodes might
+still be genuine ancestors of some *other* branch (e.g. one that already
+merged from the deleted branch earlier) — deleting them would corrupt that
+other branch's own history, not just the one being deleted.
+
+**Reasoning and trade-offs.** This was locked as a design decision before
+I wrote any code for it (the original design-hardening pass), but it
+wasn't actually implemented until a user asked "how do I delete my
+branch?" and I realized the feature didn't exist anywhere — CLI or web.
+Building it surfaced a real bug in `load()`: replaying a branch's history
+from disk re-derives a head for every node's own `.branch` field as a side
+effect of applying it, which silently un-deletes a branch the moment the
+repo is reloaded, since its last node still claims that branch name. Fixed
+by treating `heads.json` as the actual source of truth for "what branches
+currently exist right now" and resetting the in-memory head table to
+exactly that after replay, rather than letting replay's side effects stand
+uncorrected. Found and fixed by the round-trip test written for this
+feature, not by inspection.
+
+**What I deliberately cut.** Deleting the *current* branch — refused
+outright, matching Git's own refusal to delete a checked-out branch;
+there's always another branch to switch to first, and allowing it would
+leave "current branch" pointing at something that no longer resolves to a
+head.
+
+---
+
 ## Prior art
 
 | Tool | Handles rename identity? | Handles 3-way merge? |

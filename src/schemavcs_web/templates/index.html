@@ -22,6 +22,17 @@
     </select>
     <button type="submit">Create branch</button>
   </form>
+  <form class="row" method="post" action="/branch/delete" style="margin-top:10px">
+    <select name="name">
+      {% for b in branches %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="warn">Delete branch</button>
+  </form>
+  {% if retired_branches %}
+    <p style="color:var(--ink-soft);font-size:12.5px;margin-top:10px">
+      Deleted (names retired, can't be reused): {{ retired_branches|join(", ") }}
+    </p>
+  {% endif %}
   <div class="row" style="margin-top:10px">
     <a href="/branches/{{ current_branch }}/ddl">View emitted DDL for {{ current_branch }} →</a>
   </div>

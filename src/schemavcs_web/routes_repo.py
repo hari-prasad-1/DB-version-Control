@@ -3,12 +3,13 @@ direct-CLI-verb authoring path, wired straight into schemavcs's own public
 functions. Sync (the file-diffing authoring path) lives in routes_rename.py
 since it needs the WebConfirmBridge, unlike everything here."""
 
-from fastapi import APIRouter, Cookie, Form, Request
+from fastapi import APIRouter, Cookie, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from schemavcs.cli.commands import branch_cmd, checkout_cmd, migrate_cmd
 from schemavcs.dag.persistence import load
+from schemavcs.dag.store import BranchNameRetiredError
 from schemavcs.dag.walk import ancestors
 from schemavcs.storage.paths import read_current_branch, schema_file
 from schemavcs_web.session import RepoSession, SessionStore
@@ -31,7 +32,12 @@ def _index_context(repo_session: RepoSession) -> dict:
     current_branch = read_current_branch(repo_session.repo_root)
     branches = sorted(store.all_heads().keys())
     text = schema_file(repo_session.repo_root, current_branch).read_text()
-    return {"branches": branches, "current_branch": current_branch, "schema_text": text}
+    return {
+        "branches": branches,
+        "current_branch": current_branch,
+        "schema_text": text,
+        "retired_branches": sorted(store.all_retired()),
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -54,7 +60,22 @@ def create_branch(
     sc_session: str | None = Cookie(default=None),
 ):
     repo_session = _require_repo(request, sc_session)
-    branch_cmd.create(repo_session.repo_root, name, from_branch=from_branch or None)
+    try:
+        branch_cmd.create(repo_session.repo_root, name, from_branch=from_branch or None)
+    except (ValueError, BranchNameRetiredError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return RedirectResponse("/", status_code=303)
+
+
+@router.post("/branch/delete")
+def delete_branch(
+    request: Request, name: str = Form(...), sc_session: str | None = Cookie(default=None)
+):
+    repo_session = _require_repo(request, sc_session)
+    try:
+        branch_cmd.delete(repo_session.repo_root, name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
