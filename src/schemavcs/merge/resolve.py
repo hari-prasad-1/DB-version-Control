@@ -107,18 +107,28 @@ class ResolutionEngine:
         already present in at least one parent's own ancestor chain, and
         replay()/emit_ddl() walk BOTH parents, so it's already reachable.
         Re-storing it in the merge node would apply it a second time --
-        harmless for a mutation (setting the same field twice), but a hard
-        error for CreateTable/AddColumn/DropTable/etc (duplicate insert,
-        missing-key delete). COMMUTING/ORDER_IRRELEVANT only ever pair up
-        two DIFFERENT mutation-type ops on one pre-existing identity (never
-        a create/drop -- classify.py routes those to CONFLICT or IDENTICAL
-        instead), so re-storing both here is required (each side only
-        carries its own half) and safe (mutations are idempotent to
-        re-apply)."""
-        if group.classification in (Classification.IDENTICAL, Classification.UNRELATED):
+        harmless for in-memory STATE (a mutation is idempotent to
+        re-apply), but wrong for DDL TEXT: emit_ddl prints one SQL line per
+        operation *instance* it walks, so a re-stored op that's already
+        reachable through its own branch's ancestor chain would print as
+        duplicate, nonsensical SQL, even though nothing is wrong with the
+        resulting schema state.
+
+        COMMUTING/ORDER_IRRELEVANT pair up two DIFFERENT mutation-type ops
+        on one pre-existing identity (never a create/drop -- classify.py
+        routes those to CONFLICT or IDENTICAL instead). Both `ops_a` (the
+        target branch's own history) and `ops_b` (the source branch's own
+        history) are already reachable through the merge node's two
+        parent chains -- the merge node is exactly what makes both
+        reachable at once. Nothing needs to be re-stored here, same as
+        IDENTICAL/UNRELATED above."""
+        if group.classification in (
+            Classification.IDENTICAL,
+            Classification.UNRELATED,
+            Classification.COMMUTING,
+            Classification.ORDER_IRRELEVANT,
+        ):
             return ()
-        if group.classification in (Classification.COMMUTING, Classification.ORDER_IRRELEVANT):
-            return tuple(group.group.ops_a) + tuple(group.group.ops_b)
         return None
 
     def commit_resolution(

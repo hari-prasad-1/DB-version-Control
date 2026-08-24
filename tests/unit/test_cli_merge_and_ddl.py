@@ -93,6 +93,37 @@ def test_emit_ddl_cmd_prints_sql_for_full_history(tmp_path, capsys):
     assert "ALTER TABLE orders ADD COLUMN total int NOT NULL;" in output
 
 
+def test_commuting_merge_does_not_duplicate_ddl_for_the_targets_own_op(tmp_path, capsys):
+    # BUG: a COMMUTING merge (two different fields of the same column
+    # touched on each side -- e.g. renamed on one branch, retyped on the
+    # other) re-stores BOTH ops_a and ops_b in the new merge node
+    # (resolve.py's auto_resolve, by design -- each side only carries its
+    # own half). But ops_a is *already* the target branch's own history,
+    # separately reachable as an ancestor of the merge node. emit_ddl walks
+    # every ancestor and prints one SQL line per operation INSTANCE, so
+    # ops_a's rename gets printed once from the target's own pre-merge
+    # node, and AGAIN from the merge node that re-stored it -- duplicate,
+    # nonsensical DDL, even though re-applying it to in-memory STATE is
+    # harmless (setting the same field to the same value twice).
+    init_cmd.run(tmp_path)
+    migrate_cmd.create_table(tmp_path, "main", "users")
+    migrate_cmd.add_column(tmp_path, "main", "users", "status", "string", True)
+    branch_cmd.create(tmp_path, "branch-b", from_branch="main")
+
+    migrate_cmd.rename_column(tmp_path, "main", "users", "status", "state")
+    migrate_cmd.alter_column_type(tmp_path, "branch-b", "users", "status", "enum")
+
+    merge_cmd.run(tmp_path, "main", "branch-b")
+
+    parser = build_parser()
+    args = parser.parse_args(["--repo", str(tmp_path), "emit-ddl", "--branch", "main"])
+    dispatch(args)
+
+    output = capsys.readouterr().out
+    assert output.count("RENAME COLUMN status TO state") == 1
+    assert output.count("ALTER COLUMN state TYPE enum") == 1
+
+
 def test_full_pipeline_branch_diverge_merge_emit_ddl(tmp_path, capsys):
     init_cmd.run(tmp_path)
     migrate_cmd.create_table(tmp_path, "main", "orders")
