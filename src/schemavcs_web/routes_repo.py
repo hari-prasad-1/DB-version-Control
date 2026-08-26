@@ -8,10 +8,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from schemavcs.cli.commands import branch_cmd, checkout_cmd, migrate_cmd
+from schemavcs.cli.resolve import UnknownColumnError, UnknownIndexError, UnknownTableError
 from schemavcs.dag.persistence import load
 from schemavcs.dag.store import BranchNameRetiredError
 from schemavcs.dag.walk import ancestors
 from schemavcs.storage.paths import read_current_branch, schema_file
+
+MIGRATE_ERRORS = (ValueError, UnknownTableError, UnknownColumnError, UnknownIndexError)
 from schemavcs_web.session import RepoSession, SessionStore
 
 router = APIRouter()
@@ -99,7 +102,10 @@ def checkout(
     request: Request, branch: str = Form(...), sc_session: str | None = Cookie(default=None)
 ):
     repo_session = _require_repo(request, sc_session)
-    checkout_cmd.run(repo_session.repo_root, branch)
+    try:
+        checkout_cmd.run(repo_session.repo_root, branch)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
@@ -109,7 +115,10 @@ def create_table(
 ):
     repo_session = _require_repo(request, sc_session)
     branch = read_current_branch(repo_session.repo_root)
-    migrate_cmd.create_table(repo_session.repo_root, branch, table)
+    try:
+        migrate_cmd.create_table(repo_session.repo_root, branch, table)
+    except MIGRATE_ERRORS as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
@@ -124,7 +133,10 @@ def add_column(
 ):
     repo_session = _require_repo(request, sc_session)
     branch = read_current_branch(repo_session.repo_root)
-    migrate_cmd.add_column(repo_session.repo_root, branch, table, column, type_expr, nullable)
+    try:
+        migrate_cmd.add_column(repo_session.repo_root, branch, table, column, type_expr, nullable)
+    except MIGRATE_ERRORS as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
@@ -138,7 +150,10 @@ def alter_column_type(
 ):
     repo_session = _require_repo(request, sc_session)
     branch = read_current_branch(repo_session.repo_root)
-    migrate_cmd.alter_column_type(repo_session.repo_root, branch, table, column, new_type)
+    try:
+        migrate_cmd.alter_column_type(repo_session.repo_root, branch, table, column, new_type)
+    except MIGRATE_ERRORS as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
@@ -152,7 +167,10 @@ def rename_column(
 ):
     repo_session = _require_repo(request, sc_session)
     branch = read_current_branch(repo_session.repo_root)
-    migrate_cmd.rename_column(repo_session.repo_root, branch, table, old_name, new_name)
+    try:
+        migrate_cmd.rename_column(repo_session.repo_root, branch, table, old_name, new_name)
+    except MIGRATE_ERRORS as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 
@@ -162,7 +180,10 @@ def drop_table(
 ):
     repo_session = _require_repo(request, sc_session)
     branch = read_current_branch(repo_session.repo_root)
-    migrate_cmd.drop_table(repo_session.repo_root, branch, table)
+    try:
+        migrate_cmd.drop_table(repo_session.repo_root, branch, table)
+    except MIGRATE_ERRORS as exc:
+        raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
 

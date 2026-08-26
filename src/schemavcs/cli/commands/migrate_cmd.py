@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from schemavcs.cli.resolve import find_column_id, find_index_id, find_table
+from schemavcs.cli.resolve import UnknownColumnError, find_column_id, find_index_id, find_table
 from schemavcs.cli.typespec_arg import parse_type_spec
 from schemavcs.dag import replay
 from schemavcs.dag.persistence import load, save
@@ -48,6 +48,10 @@ def _commit(repo_root: Path, branch: str, operation: Operation) -> str:
 
 
 def create_table(repo_root: Path, branch: str, table_name: str) -> None:
+    store = load(repo_root)
+    snapshot = replay(store, store.head(branch), branch)
+    if any(t.name == table_name for t in snapshot.tables):
+        raise ValueError(f"table {table_name!r} already exists")
     op = CreateTable(table=Table(id=uuid4(), name=table_name))
     rev = _commit(repo_root, branch, op)
     logger.info(f"created table {table_name!r} ({rev})")
@@ -111,7 +115,10 @@ def alter_column_type(
     store = load(repo_root)
     snapshot = replay(store, store.head(branch), branch)
     table = find_table(snapshot, table_name)
-    column = next(c for c in table.columns if c.name == column_name)
+    try:
+        column = next(c for c in table.columns if c.name == column_name)
+    except StopIteration:
+        raise UnknownColumnError(column_name) from None
     rev = _commit(
         repo_root,
         branch,

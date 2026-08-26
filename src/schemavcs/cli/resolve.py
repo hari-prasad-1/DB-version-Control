@@ -7,15 +7,21 @@ from schemavcs.model import Snapshot, Table
 
 
 class UnknownTableError(Exception):
-    pass
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"table {name!r} does not exist")
 
 
 class UnknownColumnError(Exception):
-    pass
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"column {name!r} does not exist")
 
 
 class UnknownIndexError(Exception):
-    pass
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"index {name!r} does not exist")
 
 
 def find_table(snapshot: Snapshot, name: str) -> Table:
