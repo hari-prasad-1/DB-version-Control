@@ -11,19 +11,10 @@ class UnknownBranchError(Exception):
     pass
 
 
-class BranchNameRetiredError(Exception):
-    """Raised when creating/reusing a branch name that was deleted before.
-    Old migration history stays valid and readable after its branch name is
-    deleted; the one thing worth guarding against is a NEW branch later
-    reusing that exact name, which would make old history look like it
-    belongs to an unrelated branch of the same name."""
-
-
 class DagStore:
     def __init__(self) -> None:
         self._nodes: dict[RevisionId, Migration] = {}
         self._heads: dict[str, RevisionId] = {}
-        self._retired_branches: set[str] = set()
         # Ancestor sets never change once computed — nodes are immutable
         # after append, so a revision's parents (and thus its ancestors)
         # never change either.
@@ -83,29 +74,16 @@ class DagStore:
         happened to leave behind."""
         self._heads = dict(heads)
 
-    def retire_branch(self, branch: str) -> None:
+    def delete_branch(self, branch: str) -> None:
         """Deletes a branch: its head pointer is removed, but the migration
         nodes it pointed at are untouched and stay reachable through any
         other branch that shares ancestry with them (e.g. a branch merged
-        from it earlier). The name itself is retired permanently -- see
-        BranchNameRetiredError."""
+        from it earlier). The name itself is free to be reused immediately
+        by a new branch, which starts fresh from whatever `from_branch` it
+        names -- it has no link back to the deleted branch's history."""
         if not self.has_branch(branch):
             raise UnknownBranchError(branch)
         del self._heads[branch]
-        self._retired_branches.add(branch)
-
-    def retire_branch_from_load(self, branch: str) -> None:
-        """Restores retired-branch state from disk. Unlike `retire_branch`,
-        doesn't require the branch to currently have a head -- by the time
-        this runs during load(), the head was already omitted from the
-        persisted heads.json, exactly as retire_branch left it."""
-        self._retired_branches.add(branch)
-
-    def is_retired(self, branch: str) -> bool:
-        return branch in self._retired_branches
-
-    def all_retired(self) -> set[str]:
-        return set(self._retired_branches)
 
     def all_revision_ids(self) -> list[RevisionId]:
         return list(self._nodes.keys())

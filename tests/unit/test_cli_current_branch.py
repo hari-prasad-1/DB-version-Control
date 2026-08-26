@@ -2,7 +2,6 @@ import pytest
 
 from schemavcs.cli.commands import branch_cmd, checkout_cmd, init_cmd, migrate_cmd
 from schemavcs.dag.persistence import load
-from schemavcs.dag.store import BranchNameRetiredError
 from schemavcs.storage.paths import read_current_branch
 
 
@@ -55,7 +54,7 @@ def test_checkout_unknown_branch_raises(tmp_path):
         checkout_cmd.run(tmp_path, "does-not-exist")
 
 
-def test_branch_delete_removes_it_and_retires_the_name(tmp_path):
+def test_branch_delete_removes_it(tmp_path):
     init_cmd.run(tmp_path)
     branch_cmd.create(tmp_path, "feature")
     checkout_cmd.run(tmp_path, "main")
@@ -64,7 +63,6 @@ def test_branch_delete_removes_it_and_retires_the_name(tmp_path):
 
     store = load(tmp_path)
     assert store.has_branch("feature") is False
-    assert store.is_retired("feature") is True
 
 
 def test_branch_delete_refuses_to_delete_the_current_branch(tmp_path):
@@ -78,14 +76,16 @@ def test_branch_delete_refuses_to_delete_the_current_branch(tmp_path):
     assert store.has_branch("feature") is True  # refused, nothing changed
 
 
-def test_creating_a_branch_with_a_retired_name_raises(tmp_path):
+def test_creating_a_branch_with_a_deleted_name_is_allowed_and_starts_fresh(tmp_path):
     init_cmd.run(tmp_path)
     branch_cmd.create(tmp_path, "feature")
     checkout_cmd.run(tmp_path, "main")
     branch_cmd.delete(tmp_path, "feature")
 
-    with pytest.raises(BranchNameRetiredError):
-        branch_cmd.create(tmp_path, "feature")
+    branch_cmd.create(tmp_path, "feature")  # no longer raises -- name is free again
+
+    store = load(tmp_path)
+    assert store.has_branch("feature") is True
 
 
 def test_deleted_branchs_history_stays_reachable_through_replay(tmp_path):

@@ -10,15 +10,14 @@ from fastapi.templating import Jinja2Templates
 from schemavcs.cli.commands import branch_cmd, checkout_cmd, migrate_cmd
 from schemavcs.cli.resolve import UnknownColumnError, UnknownIndexError, UnknownTableError
 from schemavcs.dag.persistence import load
-from schemavcs.dag.store import BranchNameRetiredError
 from schemavcs.dag.walk import ancestors
 from schemavcs.storage.paths import read_current_branch, schema_file
-
-MIGRATE_ERRORS = (ValueError, UnknownTableError, UnknownColumnError, UnknownIndexError)
 from schemavcs_web.session import RepoSession, SessionStore
 
 router = APIRouter()
 templates: Jinja2Templates | None = None  # set by app.py at startup
+
+MIGRATE_ERRORS = (ValueError, UnknownTableError, UnknownColumnError, UnknownIndexError)
 
 
 def _require_repo(request: Request, sc_session: str | None) -> RepoSession:
@@ -39,7 +38,6 @@ def _index_context(repo_session: RepoSession) -> dict:
         "branches": branches,
         "current_branch": current_branch,
         "schema_text": text,
-        "retired_branches": sorted(store.all_retired()),
     }
 
 
@@ -65,7 +63,7 @@ def create_branch(
     repo_session = _require_repo(request, sc_session)
     try:
         branch_cmd.create(repo_session.repo_root, name, from_branch=from_branch or None)
-    except (ValueError, BranchNameRetiredError) as exc:
+    except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 

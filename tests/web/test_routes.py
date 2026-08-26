@@ -47,7 +47,7 @@ def test_branch_and_checkout_round_trip():
     assert 'class="branch-pill current">main' in r.text
 
 
-def test_delete_branch_via_http_retires_the_name():
+def test_delete_branch_via_http_removes_it_from_the_live_list():
     client = _client()
     client.post("/migrate/create-table", data={"table": "users"})
     client.post("/branch", data={"name": "feature", "from_branch": "main"})
@@ -57,9 +57,7 @@ def test_delete_branch_via_http_retires_the_name():
     assert r.status_code in (200, 303)
 
     r = client.get("/")
-    assert "feature" not in r.text.split("Deleted")[0]  # gone from the live branch pills
-    assert "Deleted (names retired" in r.text
-    assert "feature" in r.text.split("Deleted (names retired")[1]  # shown as retired
+    assert 'value="feature"' not in r.text  # gone from the live branch pills/selects
 
 
 def test_delete_current_branch_returns_a_friendly_400_not_a_crash():
@@ -73,15 +71,14 @@ def test_delete_current_branch_returns_a_friendly_400_not_a_crash():
     assert "current branch" in r.text
 
 
-def test_recreating_a_deleted_branch_name_returns_a_friendly_400():
+def test_recreating_a_deleted_branch_name_is_allowed():
     client = _client()
     client.post("/branch", data={"name": "feature", "from_branch": "main"})
     client.post("/checkout", data={"branch": "main"})
     client.post("/branch/delete", data={"name": "feature"})
 
     r = client.post("/branch", data={"name": "feature", "from_branch": "main"})
-    assert r.status_code == 400
-    assert "deleted earlier" in r.text
+    assert r.status_code in (200, 303)
 
 
 def test_rollback_via_http_moves_head_back_and_updates_schema_editor():

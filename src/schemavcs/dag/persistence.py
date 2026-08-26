@@ -5,7 +5,7 @@ from pathlib import Path
 
 from schemavcs.dag.store import DagStore
 from schemavcs.model.serialize import from_jsonable, to_jsonable
-from schemavcs.storage.paths import dag_heads_file, dag_nodes_dir, dag_retired_branches_file
+from schemavcs.storage.paths import dag_heads_file, dag_nodes_dir
 
 
 def save(store: DagStore, repo_root: Path) -> None:
@@ -15,9 +15,6 @@ def save(store: DagStore, repo_root: Path) -> None:
         node = store.get_node(revision_id)
         (nodes_dir / f"{revision_id}.json").write_text(json.dumps(to_jsonable(node), indent=2))
     dag_heads_file(repo_root).write_text(json.dumps(store.all_heads(), indent=2))
-    dag_retired_branches_file(repo_root).write_text(
-        json.dumps(sorted(store.all_retired()), indent=2)
-    )
 
 
 def load(repo_root: Path) -> DagStore:
@@ -47,10 +44,6 @@ def load(repo_root: Path) -> DagStore:
         for branch, revision_id in json.loads(heads_file.read_text()).items():
             store.set_head(branch, revision_id)
 
-    retired_file = dag_retired_branches_file(repo_root)
-    if retired_file.exists():
-        for branch in json.loads(retired_file.read_text()):
-            store.retire_branch_from_load(branch)
     return store
 
 

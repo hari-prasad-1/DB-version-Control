@@ -36,11 +36,6 @@
     <button type="submit" class="warn">Rollback</button>
   </form>
   <p id="branch-error" style="color:#d33;font-size:12.5px;margin-top:8px;display:none"></p>
-  {% if retired_branches %}
-    <p style="color:var(--ink-soft);font-size:12.5px;margin-top:10px">
-      Deleted (names retired, can't be reused): {{ retired_branches|join(", ") }}
-    </p>
-  {% endif %}
   <div class="row" style="margin-top:10px">
     <a href="/branches/{{ current_branch }}/ddl">View emitted DDL for {{ current_branch }} →</a>
   </div>
