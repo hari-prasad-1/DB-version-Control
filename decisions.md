@@ -359,14 +359,27 @@ about.
 
 **The decision.** `branch delete <name>` removes a branch's head pointer
 but keeps every migration node it ever pointed at, fully reachable by
-revision id. The name itself is retired forever — trying to create a new
-branch with that exact name raises an error, permanently.
+revision id. The name itself is freed immediately — a later `branch
+create` can reuse it, and starts fresh from whatever `from_branch` it
+names, exactly like creating any other new branch. It has no link back to
+the deleted branch's old history; that history is still there, just no
+longer reachable through this name.
 
 **Alternatives I considered.** Actually deleting the branch's migration
 nodes along with its head. I rejected this immediately: those nodes might
 still be genuine ancestors of some *other* branch (e.g. one that already
 merged from the deleted branch earlier) — deleting them would corrupt that
 other branch's own history, not just the one being deleted.
+
+I initially also retired the deleted name permanently — refusing to let a
+new branch ever reuse it — reasoning that a name collision could make old
+history look like it belonged to the new branch. In practice this was
+just confusing: users expect deleting something to free its name back up
+(git does), and the concern doesn't actually apply here, since a new
+branch's revisions are distinguished by their own IDs and parent chain,
+not by branch name — the name is just the current head pointer's label,
+nothing in the DAG depends on it being unique over time. Dropped the
+restriction.
 
 **Reasoning and trade-offs.** This was locked as a design decision before
 I wrote any code for it (the original design-hardening pass), but it
@@ -380,7 +393,9 @@ by treating `heads.json` as the actual source of truth for "what branches
 currently exist right now" and resetting the in-memory head table to
 exactly that after replay, rather than letting replay's side effects stand
 uncorrected. Found and fixed by the round-trip test written for this
-feature, not by inspection.
+feature, not by inspection. That same fix is what makes name reuse safe:
+a reused name's new head always wins from `heads.json`, regardless of what
+old nodes claim.
 
 **What I deliberately cut.** Deleting the *current* branch — refused
 outright, matching Git's own refusal to delete a checked-out branch;
@@ -422,6 +437,50 @@ than asked would be a worse bug than one that just tells you it can't.
 Also cut: no automatic "roll back and re-run DDL against a live database"
 step, for the same reason noted in the alternatives above — that would
 require a database connection this tool has never had.
+
+---
+
+## Decision 11 — Web errors surface as friendly UI messages, not crash pages
+
+**The decision.** Every route that can fail on ordinary bad input (unknown
+table/column/branch, a duplicate name, a malformed type expression, an
+out-of-range rollback) catches its domain error and returns a `400` with a
+plain-text reason. On the frontend, every form submits through `fetch`
+instead of a normal browser POST, so a `400` renders as an inline message
+next to the form instead of navigating the whole page to FastAPI's raw
+`{"detail": "..."}` JSON response.
+
+**Alternatives I considered.** A global FastAPI exception handler that
+catches everything and always returns a rendered HTML error page. I didn't
+go this route: it would mask genuine bugs (a real `500`) behind the same
+friendly page as an expected `400`, which is exactly the distinction that
+matters most while still building this.
+
+**Reasoning and trade-offs.** This surfaced from actual use, not from
+inspection — a user hit `POST /migrate/add-column` against a table that
+didn't exist and got a raw traceback in a new browser tab. Auditing every
+mutating route found the same shape of bug repeated: `checkout` had no
+error handling at all, `alter_column_type` used `next(...)` internally
+which raises `StopIteration` (not any of the domain error types a route
+was catching), and `create_table` had no duplicate-name check at all, so a
+second `create-table users` silently produced a second table by the same
+name rather than erroring. Fixed each at its actual source — `resolve.py`
+now gives `UnknownTableError`/`UnknownColumnError`/`UnknownIndexError`
+readable `__str__` messages instead of just echoing the bad name back, and
+`migrate_cmd.py` raises proper domain errors instead of letting Python's
+own exceptions (`StopIteration`) leak through.
+
+Verified with a real headless-browser pass (Playwright) clicking through
+every form with intentionally wrong input, not just curl against the
+routes — confirming both that no route still 500s and that the error
+actually renders inline in the page a person would see, not just that the
+HTTP layer returns the right status code.
+
+**What I deliberately cut.** A generic "toast" or error-modal component —
+each panel just has its own `<p id="...-error">` slot, found via
+`form.closest(".panel")`. Enough for a two-panel single-page tool; a
+shared notification system would be solving a problem this UI doesn't
+have yet.
 
 ---
 

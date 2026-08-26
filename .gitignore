@@ -7,4 +7,3 @@ __pycache__/
 venv/
 .schemavcs/
 decision_log.md
-docs/walkthroughs/deck.html
