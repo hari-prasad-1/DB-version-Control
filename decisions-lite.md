@@ -1,6 +1,6 @@
 # Decisions — the short version
 
-10 calls I made building this. Each one: what I chose, in one line, with
+8 calls I made building this. Each one: what I chose, in one line, with
 an example. Full reasoning in `decisions.md`.
 
 ---
@@ -22,6 +22,24 @@ Old snapshot has a column gone, new snapshot has one appeared, same table,
 same type/position/etc → it's a rename, not delete+create.
 > Example: `email` (string, position 3) disappears, `contact_email`
 > (string, position 3) appears → flagged as a rename automatically.
+
+**Why this is the gap, not just a feature.** Most schema tools don't even
+attempt this — Alembic's own docs say a rename is read as a plain
+delete+add; Atlas/Liquibase/pg-schema-diff are two-way structural diffs
+with no identity concept at all. Django's `makemigrations` is the closest
+prior art (it heuristic-matches a likely rename and asks you to confirm),
+but Django has no branches — it's one linear timeline, so it never has to
+ask "did *two people, independently*, do something to what's really the
+same column?" PlanetScale solves *that* half (real three-way schema
+merge) but its public merge model is framed purely in add/drop/create —
+no rename identity either. So the actual gap is: nobody has both halves
+at once — an identity model *and* a branch/merge model that has to reason
+about that identity across divergence. Makes sense why: each half is a
+real, separately hard problem, and most tools only had reason to solve
+one of them for their use case (Django: linear history is enough for a
+single team; PlanetScale: branching databases don't need to preserve
+column-level identity through a rename the way this does). Combining both
+is the actual hard part I built for.
 
 **4. Merge conflicts are classified, not guessed.**
 Two branches touching the *same* thing differently = conflict, needs a
@@ -46,14 +64,7 @@ function boundary, not a comment.
 > Example: there's no code path where the summarizer's output can flip a
 > conflict to auto-resolved — it can only produce text a human reads.
 
-**7. Bugs found by running it, not by reading it.**
-Two real bugs only surfaced from actually exercising the tool end to end,
-not from code review.
-> Example: a `load()` bug where a deleted branch's last commit still
-> claimed its old branch name, silently un-deleting it on reload — found
-> by a round-trip save/load test, not by inspection.
-
-**8. Web UI is a thin layer over the same CLI functions — no parallel
+**7. Web UI is a thin layer over the same CLI functions — no parallel
 engine.**
 The web routes call the exact same `migrate_cmd.py` / `branch_cmd.py`
 functions the CLI does.
@@ -61,7 +72,7 @@ functions the CLI does.
 > `migrate_cmd.add_column()` that `schemavcs migrate add-column` runs from
 > a terminal. One engine, two front doors.
 
-**9. Deleting a branch frees its name immediately — same as Git.**
+**8. Deleting a branch frees its name immediately — same as Git.**
 The branch's *history* stays around (nothing is actually deleted), but the
 *name* becomes reusable right away. A new branch with the old name starts
 completely fresh, with no link to what used to be there.
@@ -69,26 +80,3 @@ completely fresh, with no link to what used to be there.
 > no error. It's a brand new branch from `main`, unrelated to the old
 > `feature`'s history (which is still reachable by its old revision IDs,
 > just not through this name anymore).
->
-> *(Earlier version of this tool permanently blocked reusing a deleted
-> name — changed after using it made clear that's not what anyone expects.)*
-
-**10. Rollback moves a branch's head backward — no reverse SQL.**
-There's no live database to run `DROP COLUMN` against, so "rollback" just
-means `git reset --hard HEAD~n`: move the pointer back, nothing is deleted.
-> Example: `branch rollback main --steps 1` after adding a column just
-> moves `main`'s head to the commit before that add — the add-column
-> commit still exists, just nothing points at it as current anymore.
-
----
-
-## Bonus: errors show up where you're looking, not as a crash page
-
-Every web form (add column, delete branch, etc.) submits through a
-background request instead of a normal page load. If you do something
-invalid — unknown table, duplicate branch name, bad type — you get a
-readable red message right under that form. You never get dumped onto a
-raw `{"detail": "..."}` JSON page or a stack trace.
-> Example: try to delete the branch you're currently on → inline message:
-> *"cannot delete 'main': it's the current branch — checkout another
-> branch first."* Page never navigates away.
